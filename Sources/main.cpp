@@ -204,7 +204,7 @@ exit:
 
         static void FindDictAddr(MenuEntry *)
         {
-            StringVector opts;
+            std::vector<std::string> opts;
             for (const Known &k : kKnown) opts.push_back(k.name);
             Keyboard kb("大辞典で今カーソルを合わせている妖怪を選んで下さい", opts);
             int ch = kb.Open();
