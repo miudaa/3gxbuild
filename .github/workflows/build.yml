@@ -15,7 +15,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build plugin
-        run: make
+        run: |
+          set +e
+          make 2>&1 | tee build.log
+          rc=${PIPESTATUS[0]}
+          if [ $rc -ne 0 ]; then
+            grep -E "error|Error" build.log | head -15 | while IFS= read -r l; do echo "::error::$l"; done
+            exit $rc
+          fi
 
       # Upload first so the file can be inspected even if the check below fails.
       - name: Upload 3GX
