@@ -1,0 +1,35 @@
+name: Build 3GX
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    container:
+      image: pablomk7/libctrpf:0.8.0
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build plugin
+        run: make
+
+      # Upload first so the file can be inspected even if the check below fails.
+      - name: Upload 3GX
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3gxbuild-3gx
+          path: 3gxbuild.3gx
+
+      # Azahar only accepts the "3GX$0002" format ("Outdated or invalid 3GX plugin" otherwise).
+      - name: Check 3GX magic
+        run: |
+          magic=$(head -c 8 3gxbuild.3gx)
+          echo "3GX magic: $magic"
+          if [ "$magic" != '3GX$0002' ]; then
+            echo "::error::3GX magic is '$magic' but Azahar needs '3GX\$0002'"
+            exit 1
+          fi
