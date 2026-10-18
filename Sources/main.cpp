@@ -133,18 +133,24 @@ exit:
         static void BattleItems(MenuEntry *) { FillItems(BattleItm, 0x12A, "バトルアイテム&装備"); }
         static void ToolItems(MenuEntry *)   { FillItems(ToolItm, 0x1F2, "道具&素材"); }
 
-        static void Level255(MenuEntry *)
+        static void SetLevel(MenuEntry *)
         {
             if (!Guard(LvBase, 0x65 * 0x10)) return;
-            if (!MessageBox("Lv.255", "妖怪のレベルを255にします。\nセーブのバックアップは取りましたか？", DialogType::DialogYesNo)())
+            u32 lv = 99;
+            Keyboard kb("全妖怪のレベルを入力 (1-255)");
+            kb.IsHexadecimal(false);
+            if (kb.Open(lv, lv) != 0) return;
+            if (lv < 1) lv = 1;
+            if (lv > 255) lv = 255;
+            if (!MessageBox("レベル変更", "全妖怪のレベルを " + std::to_string(lv) + " にします。\nセーブのバックアップは取りましたか？", DialogType::DialogYesNo)())
                 return;
             for (u32 i = 0; i < 0x65; i++)
             {
                 u32 a = LvBase + i * 0x10;
-                Process::Write16(a, 0x00FF);
+                Process::Write16(a, (u16)lv);
                 Process::Write16(a + 2, 0xA1F4);
             }
-            OSD::Notify("Lv.255 を適用しました");
+            OSD::Notify("全妖怪のレベルを " + std::to_string(lv) + " にしました");
         }
 
         static void StorySkip(MenuEntry *)
@@ -163,9 +169,9 @@ exit:
         menu += new MenuEntry("ランク変更", nullptr, Yk::SetRank, "A: ランクを数値で指定 (1-99)");
         menu += new MenuEntry("所持鬼玉を変更", nullptr, Yk::SetOniDama, "A: 数値を入力 (最大999999)");
         menu += new MenuEntry("所持記章を変更", nullptr, Yk::SetKisho, "A: 数値を入力 (最大999999)");
-        menu += new MenuEntry("バトルアイテム&装備 x99", nullptr, Yk::BattleItems, "A: 全て99個に");
+        menu += new MenuEntry("装備全入手 (バトルアイテム&装備 x99)", nullptr, Yk::BattleItems, "A: 全ての装備・バトルアイテムを99個に");
         menu += new MenuEntry("道具&素材 x99", nullptr, Yk::ToolItems, "A: 全て99個に");
-        menu += new MenuEntry("妖怪 Lv.255", nullptr, Yk::Level255, "A: 全妖怪のLvを255に (要バックアップ)");
+        menu += new MenuEntry("全妖怪レベル変更 (初期値99)", nullptr, Yk::SetLevel, "A: 全妖怪のLvを数値で指定 (1-255) 要バックアップ");
         menu += new MenuEntry("ストーリースキップ", nullptr, Yk::StorySkip, "A: 進行フラグを全て立てる (要バックアップ)");
     }
 
