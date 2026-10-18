@@ -77,7 +77,8 @@ exit:
         static constexpr u32 StoryFlag = 0x0BECFBEC; // 5 x u32
         static constexpr u32 BattleItm = 0x0BECD7FC; // 0x12A entries, stride 0x10
         static constexpr u32 ToolItm   = 0x0BECB82C; // 0x1F2 entries, stride 0x10
-        static constexpr u32 LvBase    = 0x0BECF45A; // 0x65 entries, stride 0x10
+        static constexpr u32 LvBase    = 0x0BECF45A; // 0x65 entries, stride 0x10 (soul levels)
+        static constexpr u32 YokaiLv   = 0x0BEBACD5; // u8, 0x1A2 slots, stride 0x88 (owned yokai)
 
         static bool Ready(u32 addr, u32 size)
         {
@@ -153,6 +154,22 @@ exit:
             OSD::Notify("全妖怪のレベルを " + std::to_string(lv) + " にしました");
         }
 
+        static void SetYokaiLevel(MenuEntry *)
+        {
+            if (!Guard(YokaiLv, 0x1A1 * 0x88 + 1)) return;
+            u32 lv = 99;
+            Keyboard kb("全妖怪のレベルを入力 (1-255)");
+            kb.IsHexadecimal(false);
+            if (kb.Open(lv, lv) != 0) return;
+            if (lv < 1) lv = 1;
+            if (lv > 255) lv = 255;
+            if (!MessageBox("レベル変更", "所持している全妖怪のレベルを " + std::to_string(lv) + " にします。\nセーブのバックアップは取りましたか？", DialogType::DialogYesNo)())
+                return;
+            for (u32 i = 0; i < 0x1A2; i++)
+                Process::Write8(YokaiLv + i * 0x88, (u8)lv);
+            OSD::Notify("全妖怪のレベルを " + std::to_string(lv) + " にしました");
+        }
+
         static void StorySkip(MenuEntry *)
         {
             if (!Guard(StoryFlag, 20)) return;
@@ -171,7 +188,8 @@ exit:
         menu += new MenuEntry("所持記章を変更", nullptr, Yk::SetKisho, "A: 数値を入力 (最大999999)");
         menu += new MenuEntry("装備全入手 (バトルアイテム&装備 x99)", nullptr, Yk::BattleItems, "A: 全ての装備・バトルアイテムを99個に");
         menu += new MenuEntry("道具&素材 x99", nullptr, Yk::ToolItems, "A: 全て99個に");
-        menu += new MenuEntry("全妖怪レベル変更 (初期値99)", nullptr, Yk::SetLevel, "A: 全妖怪のLvを数値で指定 (1-255) 要バックアップ");
+        menu += new MenuEntry("全妖怪レベル変更 (初期値99)", nullptr, Yk::SetYokaiLevel, "A: 所持している全妖怪のLvを数値で指定 (1-255) 要バックアップ");
+        menu += new MenuEntry("全魂レベル変更 (初期値99)", nullptr, Yk::SetLevel, "A: 全ての魂のLvを数値で指定 (1-255) 要バックアップ");
         menu += new MenuEntry("ストーリースキップ", nullptr, Yk::StorySkip, "A: 進行フラグを全て立てる (要バックアップ)");
     }
 
