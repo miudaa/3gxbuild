@@ -170,6 +170,104 @@ exit:
             OSD::Notify("全妖怪のレベルを " + std::to_string(lv) + " にしました");
         }
 
+        // ---- 大辞典で選んだ妖怪を手持ちの枠に入れる -----------------------------
+        static constexpr u32 YokaiSlot = 0x0BEBAC94; // yokai ID (u32), stride 0x88, 400 slots
+        static constexpr u32 SlotCount = 400;
+
+        struct Known { const char *name; u32 id; };
+        static const Known kKnown[] =
+        {
+            { "ジバニャン",     0xA3A68AA8 },
+            { "ふぶきちゃん",   0x9A4949D5 },
+            { "百鬼姫",         0x8D41292C },
+            { "ブシニャン",     0x97122416 },
+            { "鬼蜘蛛",         0x849948FD },
+            { "鬼ガマ",         0xE616A81F },
+            { "ツチノコ星人",   0x2E908076 },
+            { "エンマ大王",     0x31172F1E },
+            { "ブシ王",         0xEBE2C9D1 },
+        };
+
+        static std::vector<u32> gCands;
+        static bool gHaveCands = false;
+
+        static void ScanHeap(u32 id, std::vector<u32> &out)
+        {
+            for (u32 page = 0x08000000; page < 0x0C800000; page += 0x1000)
+            {
+                if (!Process::CheckAddress(page)) continue;
+                const u32 *p = (const u32 *)page;
+                for (u32 i = 0; i < 0x400; i++)
+                    if (p[i] == id) out.push_back(page + i * 4);
+            }
+        }
+
+        static void FindDictAddr(MenuEntry *)
+        {
+            StringVector opts;
+            for (const Known &k : kKnown) opts.push_back(k.name);
+            Keyboard kb("大辞典で今カーソルを合わせている妖怪を選んで下さい", opts);
+            int ch = kb.Open();
+            if (ch < 0) return;
+            u32 id = kKnown[ch].id;
+
+            std::vector<u32> res;
+            if (!gHaveCands)
+                ScanHeap(id, res);
+            else
+                for (u32 a : gCands)
+                    if (Process::CheckAddress(a) && *(const u32 *)a == id) res.push_back(a);
+
+            if (res.empty())
+            {
+                gCands.clear(); gHaveCands = false;
+                OSD::Notify("候補が0件になりました。最初からやり直して下さい");
+                return;
+            }
+            gCands = res; gHaveCands = true;
+            if (res.size() == 1)
+            {
+                char buf[64];
+                snprintf(buf, sizeof(buf), "確定: %08X", res[0]);
+                OSD::Notify(buf);
+            }
+            else
+                OSD::Notify("候補 " + std::to_string(res.size()) + " 件。別の妖怪にカーソルを動かして、もう一度実行して下さい");
+        }
+
+        static void ResetDictAddr(MenuEntry *)
+        {
+            gCands.clear(); gHaveCands = false;
+            OSD::Notify("探索結果をリセットしました");
+        }
+
+        static void DictToParty(MenuEntry *)
+        {
+            if (!gHaveCands || gCands.size() != 1)
+            {
+                OSD::Notify("先に「大辞典の選択アドレス探索」で1件に絞って下さい");
+                return;
+            }
+            u32 src = gCands[0];
+            if (!Process::CheckAddress(src)) { OSD::Notify("アドレスが無効です。探索し直して下さい"); return; }
+            u32 id = *(const u32 *)src;
+            if (id == 0 || id == 0xFFFFFFFF) { OSD::Notify("大辞典で妖怪を選んでから実行して下さい"); return; }
+
+            u32 slot = 1;
+            Keyboard kb("手持ちの何番目の枠に入れますか (1-400)\n※その枠の妖怪は置き換わります");
+            kb.IsHexadecimal(false);
+            if (kb.Open(slot, slot) != 0) return;
+            if (slot < 1 || slot > SlotCount) { OSD::Notify("枠の番号が範囲外です"); return; }
+            u32 dst = YokaiSlot + (slot - 1) * 0x88;
+            if (!Guard(dst, 4)) return;
+
+            char body[160];
+            snprintf(body, sizeof(body), "枠%u の妖怪を、大辞典で選択中の妖怪(ID %08X)に置き換えます。\nセーブのバックアップは取りましたか？", (unsigned)slot, (unsigned)id);
+            if (!MessageBox("妖怪変更", body, DialogType::DialogYesNo)()) return;
+            Process::Write32(dst, id);
+            OSD::Notify("枠" + std::to_string(slot) + " を変更しました。セーブして再ロードして下さい");
+        }
+
         static void StorySkip(MenuEntry *)
         {
             if (!Guard(StoryFlag, 20)) return;
@@ -190,6 +288,9 @@ exit:
         menu += new MenuEntry("道具&素材 x99", nullptr, Yk::ToolItems, "A: 全て99個に");
         menu += new MenuEntry("全妖怪レベル変更 (初期値99)", nullptr, Yk::SetYokaiLevel, "A: 所持している全妖怪のLvを数値で指定 (1-255) 要バックアップ");
         menu += new MenuEntry("全魂レベル変更 (初期値99)", nullptr, Yk::SetLevel, "A: 全ての魂のLvを数値で指定 (1-255) 要バックアップ");
+        menu += new MenuEntry("妖怪変更1: 大辞典の選択アドレス探索", nullptr, Yk::FindDictAddr, "大辞典で妖怪にカーソルを合わせて実行。候補が1件になるまで、別の妖怪で繰り返す");
+        menu += new MenuEntry("妖怪変更2: 大辞典の妖怪を手持ちの枠に入れる", nullptr, Yk::DictToParty, "大辞典で選択中の妖怪を、指定した枠に入れる (要バックアップ)");
+        menu += new MenuEntry("妖怪変更: 探索結果をリセット", nullptr, Yk::ResetDictAddr, "探索をやり直すとき");
         menu += new MenuEntry("ストーリースキップ", nullptr, Yk::StorySkip, "A: 進行フラグを全て立てる (要バックアップ)");
     }
 
