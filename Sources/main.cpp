@@ -268,6 +268,14 @@ exit:
             OSD::Notify("枠" + std::to_string(slot) + " を変更しました。セーブして再ロードして下さい");
         }
 
+        static void LegendUnlock(MenuEntry *)
+        {
+            const u32 addr = 0x0BECFFF4; // legend yokai unlocked flag (u32)
+            if (!Guard(addr, 4)) return;
+            Process::Write32(addr, 0xFF);
+            OSD::Notify("レジェンド妖怪を解放済みにしました");
+        }
+
         static void StorySkip(MenuEntry *)
         {
             if (!Guard(StoryFlag, 20)) return;
@@ -291,6 +299,7 @@ exit:
         menu += new MenuEntry("妖怪変更1: 大辞典の選択アドレス探索", nullptr, Yk::FindDictAddr, "大辞典で妖怪にカーソルを合わせて実行。候補が1件になるまで、別の妖怪で繰り返す");
         menu += new MenuEntry("妖怪変更2: 大辞典の妖怪を手持ちの枠に入れる", nullptr, Yk::DictToParty, "大辞典で選択中の妖怪を、指定した枠に入れる (要バックアップ)");
         menu += new MenuEntry("妖怪変更: 探索結果をリセット", nullptr, Yk::ResetDictAddr, "探索をやり直すとき");
+        menu += new MenuEntry("レジェンド妖怪 解放", nullptr, Yk::LegendUnlock, "A: レジェンド妖怪を解放済みにする");
         menu += new MenuEntry("ストーリースキップ", nullptr, Yk::StorySkip, "A: 進行フラグを全て立てる (要バックアップ)");
     }
 
